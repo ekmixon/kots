@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
 # k3d
-curl -s "https://raw.githubusercontent.com/rancher/k3d/main/install.sh" | bash 
+# v5 RC is needed to deterministically set the Registry port
+curl -s https://raw.githubusercontent.com/rancher/k3d/main/install.sh | TAG=v5.0.0-rc.4 bash
 
 # skaffold
 curl -Lo /tmp/skaffold "https://storage.googleapis.com/skaffold/releases/latest/skaffold-linux-amd64"

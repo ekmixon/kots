@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
 # Setup Skaffold
-cp /etc/replicated/skaffold.config $HOME/.skaffold/config
+mkdir $HOMEDIR/.skaffold
+cp /etc/replicated/skaffold.config $HOMEDIR/.skaffold/config
 
 # install Krew 
 # TODO (dans): ditch krew and just download the latest binaries on the path in Dockerfile

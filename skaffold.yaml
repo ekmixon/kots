@@ -9,6 +9,12 @@ profiles:
       kustomize:
         paths: 
           - "./kustomize/overlays/kotsstore"
+  - name: codespace
+    activation:
+      - env: USER=codespace 
+    build:
+      local:
+        push: true
 
 build:
   insecureRegistries:
