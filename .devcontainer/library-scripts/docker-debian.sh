@@ -78,9 +78,10 @@ check_packages() {
 export DEBIAN_FRONTEND=noninteractive
 
 # Install dependencies
-check_packages apt-transport-https curl ca-certificates gnupg2
+check_packages apt-transport-https curl ca-certificates gnupg2 dirmngr
 
 # Install Docker / Moby CLI if not already installed
+architecture="$(dpkg --print-architecture)"
 if type docker > /dev/null 2>&1; then
     echo "Docker / Moby CLI already installed."
 else
@@ -90,9 +91,10 @@ else
         # Import key safely (new 'signed-by' method rather than deprecated apt-key approach) and install
         get_common_setting MICROSOFT_GPG_KEYS_URI
         curl -sSL ${MICROSOFT_GPG_KEYS_URI} | gpg --dearmor > /usr/share/keyrings/microsoft-archive-keyring.gpg
-        echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/microsoft-archive-keyring.gpg] https://packages.microsoft.com/repos/microsoft-${ID}-${VERSION_CODENAME}-prod ${VERSION_CODENAME} main" > /etc/apt/sources.list.d/microsoft.list
+        echo "deb [arch=${architecture} signed-by=/usr/share/keyrings/microsoft-archive-keyring.gpg] https://packages.microsoft.com/repos/microsoft-${ID}-${VERSION_CODENAME}-prod ${VERSION_CODENAME} main" > /etc/apt/sources.list.d/microsoft.list
         apt-get update
-        apt-get -y install --no-install-recommends moby-cli moby-buildx moby-compose
+        apt-get -y install --no-install-recommends moby-cli moby-buildx moby-engine
+        apt-get -y install --no-install-recommends moby-compose || echo "(*) Package moby-compose (Docker Compose v2) not available for ${VERSION_CODENAME} ${architecture}. Skipping."
     else
         # Import key safely (new 'signed-by' method rather than deprecated apt-key approach) and install
         curl -fsSL https://download.docker.com/linux/${ID}/gpg | gpg --dearmor > /usr/share/keyrings/docker-archive-keyring.gpg
@@ -107,20 +109,27 @@ if type docker-compose > /dev/null 2>&1; then
     echo "Docker Compose already installed."
 else
     TARGET_COMPOSE_ARCH="$(uname -m)"
-    if [ "${TARGET_COMPOSE_ARCH}" = "amd64" ]; then
-        TARGET_COMPOSE_ARCH="x86_64"
+    #As of Docker Compose 2.0 (28Sept2021), Docker Compose replaced the "x86_64" suffixed to "AMD64".  Update the target arch to pull the right iteration
+    if [ "${TARGET_COMPOSE_ARCH}" = "x86_64" ]; then
+        TARGET_COMPOSE_ARCH="amd64"
     fi
-    if [ "${TARGET_COMPOSE_ARCH}" != "x86_64" ]; then
+    if [ "${TARGET_COMPOSE_ARCH}" != "amd64" ]; then
         # Use pip to get a version that runns on this architecture
-        if ! dpkg -s python3-minimal python3-pip libffi-dev python3-venv pipx > /dev/null 2>&1; then
+        if ! dpkg -s python3-minimal python3-pip libffi-dev python3-venv > /dev/null 2>&1; then
             apt_get_update_if_needed
-            apt-get -y install python3-minimal python3-pip libffi-dev python3-venv pipx
+            apt-get -y install python3-minimal python3-pip libffi-dev python3-venv
         fi
         export PIPX_HOME=/usr/local/pipx
         mkdir -p ${PIPX_HOME}
         export PIPX_BIN_DIR=/usr/local/bin
+        export PYTHONUSERBASE=/tmp/pip-tmp
         export PIP_CACHE_DIR=/tmp/pip-tmp/cache
-        pipx install --system-site-packages --pip-args '--no-cache-dir --force-reinstall' docker-compose
+        pipx_bin=pipx
+        if ! type pipx > /dev/null 2>&1; then
+            pip3 install --disable-pip-version-check --no-warn-script-location  --no-cache-dir --user pipx
+            pipx_bin=/tmp/pip-tmp/bin/pipx
+        fi
+        ${pipx_bin} install --system-site-packages --pip-args '--no-cache-dir --force-reinstall' docker-compose
         rm -rf /tmp/pip-tmp
     else 
         LATEST_COMPOSE_VERSION=$(basename "$(curl -fsSL -o /dev/null -w "%{url_effective}" https://github.com/docker/compose/releases/latest)")
